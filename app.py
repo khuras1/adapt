@@ -9,9 +9,8 @@ import matplotlib.pyplot as plt
 # -----------------------------
 # Supabase Configuration
 # -----------------------------
-SUPABASE_URL = st.secrets["https://pemridpgtqunrjegyuac.supabase.co"]
-SUPABASE_KEY = st.secrets["sb_secret_SWqh9N0MOd7agOxnokvDkg_ID-UYxIR"]
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.title("🎓 Advanced LMS Lecturer Dashboard")
@@ -26,7 +25,7 @@ if lecturer_id:
     # -----------------------------
     # Module Content Upload
     # -----------------------------
-    st.header("📂 Upload Content for a Module")
+    st.header(" Upload Content for a Module")
     course_list = supabase.table("courses").select("id, course_name").eq("lecturer_id", int(lecturer_id)).execute()
     courses = {c["course_name"]: c["id"] for c in course_list.data}
     
@@ -36,15 +35,24 @@ if lecturer_id:
     content_type = st.selectbox("Content Type", ["PDF", "Video"])
     
     if st.button("Upload Content") and uploaded_file and title:
-        file_url = f"/uploads/{uploaded_file.name}"  # Replace with real storage upload
-        supabase.table("course_content").insert({
-            "course_id": courses[selected_course],
-            "title": title,
-            "content_type": content_type,
-            "file_url": file_url,
-            "created_at": datetime.datetime.utcnow().isoformat()
-        }).execute()
-        st.success("Content uploaded successfully!")
+        # Upload file to Supabase Storage
+        file_bytes = uploaded_file.read()
+        storage_response = supabase.storage.from_("course-content").upload(
+            f"{selected_course}/{uploaded_file.name}", file_bytes
+        )
+        if storage_response.error:
+            st.error(f"File upload failed: {storage_response.error['message']}")
+        else:
+            # Get public URL for the uploaded file
+            public_url = supabase.storage.from_("course-content").get_public_url(f"{selected_course}/{uploaded_file.name}")
+            supabase.table("course_content").insert({
+                "course_id": courses[selected_course],
+                "title": title,
+                "content_type": content_type,
+                "file_url": public_url,
+                "created_at": datetime.datetime.utcnow().isoformat()
+            }).execute()
+            st.success("Content uploaded successfully!")
 
     # -----------------------------
     # Quiz Upload
@@ -68,7 +76,7 @@ if lecturer_id:
     # -----------------------------
     # Analytics Overview
     # -----------------------------
-    st.header("📊 Analytics Overview")
+    st.header(" Analytics Overview")
 
     col1, col2, col3 = st.columns(3)
     
