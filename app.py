@@ -55,23 +55,16 @@ if lecturer_id:
             st.success("Content uploaded successfully!")
 
     # -----------------------------
-    # Quiz Upload
+    # Quiz Viewing (AI Agent Uploads Quizzes)
     # -----------------------------
-    st.header(" Upload Quiz for a Module")
-    quiz_course = st.selectbox("Select Course for Quiz", list(courses.keys()), key="quiz_course")
-    quiz_title = st.text_input("Quiz Title")
-    questions_json = st.text_area("Questions JSON", '{"question": "Q1?", "options": ["A","B","C"], "answer": "A"}')
-    
-    if st.button("Upload Quiz"):
-        supabase.table("quizzes").insert({
-            "title": quiz_title,
-            "chapter": quiz_title,
-            "questions": questions_json,
-            "course_id": courses[quiz_course],
-            "created_by": int(lecturer_id),
-            "created_at": datetime.datetime.utcnow().isoformat()
-        }).execute()
-        st.success("Quiz uploaded successfully!")
+    st.header(" Quizzes (Uploaded by AI Agent)")
+    quiz_list = supabase.table("quizzes").select("id, title, course_id, created_at").in_("course_id", list(courses.values())).execute()
+    if quiz_list.data:
+        df_quizzes = pd.DataFrame(quiz_list.data)
+        df_quizzes = df_quizzes.merge(pd.DataFrame([{"id": v, "course_name": k} for k, v in courses.items()]), left_on="course_id", right_on="id", suffixes=("", "_course"))
+        st.dataframe(df_quizzes[["title", "course_name", "created_at"]].rename(columns={"title": "Quiz Title", "course_name": "Course", "created_at": "Uploaded At"}))
+    else:
+        st.info("No quizzes available yet. Quizzes will be uploaded by the AI agent.")
 
     # -----------------------------
     # Analytics Overview
